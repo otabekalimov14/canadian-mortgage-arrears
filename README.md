@@ -27,7 +27,7 @@ Ingest and parse the CBA arrears PDF; load SQLite.
 | Download / cache latest PDF | `python src/fetch_cba.py` |
 | Parse (smoke) | `python src/parse_cba.py` |
 | Tests (section 5 gates) | `python -m pytest tests/test_parse.py -v` |
-| Build DB | `python src/build_db.py` |
+| Build DB (Phase 1 only) | `python -c "from build_db import build_database; build_database(include_macro_labour=False)"` from `src/` |
 
 Artifacts (gitignored): `data/raw/stat-mortgages-arrears-*-en.pdf`, `data/arrears.db`.
 
@@ -48,3 +48,31 @@ Artifacts (gitignored): `data/raw/stat-mortgages-arrears-*-en.pdf`, `data/arrear
 ### Reproduce golden checks
 
 March 2025 and January 1995 Canada / Ontario / Saskatchewan / Quebec counts in `tests/test_parse.py` must match even when a newer full-history PDF is cached.
+
+## Phase 2 status (done)
+
+Macro (Bank of Canada Valet) + labour (StatCan 14-10-0287-01) joined in `sql/01_panel.sql`.
+
+| Step | Command |
+|---|---|
+| Confirm / peek Valet series | `python src/fetch_boc.py` |
+| Cache StatCan ZIP | place `14100287-eng.zip` in `data/raw/` (from [StatCan CSV zip](https://www150.statcan.gc.ca/n1/tbl/csv/14100287-eng.zip)) |
+| Rebuild full DB + print panel | `python src/build_db.py` |
+
+### Valet series locked
+
+| Role | Code | Starts |
+|---|---|---|
+| Overnight target (policy) | `STATIC_ATABLE_V39079` | 1996-01 |
+| 5-year GoC benchmark yield | `BD.CDN.5YR.DQ.YLD` | 2001-01 |
+| Prime | `V80691311` | 1975 |
+| CPI YoY | `STATIC_TOTALCPICHANGE` | 1995-01 |
+
+Daily series are stored at native frequency in `macro`; the panel uses the last observation in each calendar month.
+
+### Expected panel nulls (not join bugs)
+
+- `policy_rate`: null in 1995 (series starts 1996)
+- `five_year_yield`: null before 2001
+- `unemployment_rate`: null for `TERR` only (excluded from the panel query)
+- Atlantic unemployment is labour-force-weighted across NL, PE, NS, NB

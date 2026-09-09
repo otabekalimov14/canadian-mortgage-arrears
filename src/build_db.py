@@ -1,4 +1,4 @@
-"""Create SQLite DB, load regions / arrears / coverage breaks."""
+"""Create SQLite DB and load arrears, macro, labour, and coverage breaks."""
 
 from __future__ import annotations
 
@@ -7,12 +7,15 @@ from pathlib import Path
 
 import pandas as pd
 
+from fetch_boc import load_macro_long
 from fetch_cba import cached_pdf_path, download_latest
+from load_statcan import build_labour_panel, ensure_statcan_zip
 from parse_cba import load_arrears_frame, report_month
 
 ROOT = Path(__file__).resolve().parents[1]
 SCHEMA_PATH = ROOT / "sql" / "schema.sql"
 DB_PATH = ROOT / "data" / "arrears.db"
+PANEL_SQL_PATH = ROOT / "sql" / "01_panel.sql"
 
 REGIONS = [
     ("CAN", "Canada", 1),
@@ -76,25 +79,56 @@ def load_arrears(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
     )
 
 
+def load_macro(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
+    payload = df[["series_code", "series_label", "obs_date", "value"]].where(
+        pd.notnull(df[["series_code", "series_label", "obs_date", "value"]]), None
+    )
+    conn.executemany(
+        """
+        INSERT INTO macro (series_code, series_label, obs_date, value)
+        VALUES (?, ?, ?, ?)
+        """,
+        list(payload.itertuples(index=False, name=None)),
+    )
+
+
+def load_labour(conn: sqlite3.Connection, df: pd.DataFrame) -> None:
+    payload = df[["region_code", "obs_month", "unemployment_rate"]].where(
+        pd.notnull(df[["region_code", "obs_month", "unemployment_rate"]]), None
+    )
+    conn.executemany(
+        """
+        INSERT INTO labour (region_code, obs_month, unemployment_rate)
+        VALUES (?, ?, ?)
+        """,
+        list(payload.itertuples(index=False, name=None)),
+    )
+
+
 def build_database(
     db_path: Path | None = None,
     pdf_path: Path | None = None,
+    include_macro_labour: bool = True,
 ) -> Path:
-    """Rebuild arrears.db from schema + parsed CBA PDF."""
+    """Rebuild arrears.db from schema + CBA PDF (+ macro/labour when available)."""
     dest = db_path or DB_PATH
     dest.parent.mkdir(parents=True, exist_ok=True)
     if dest.exists():
         dest.unlink()
 
     path = Path(pdf_path) if pdf_path else (cached_pdf_path() or download_latest())
-    df = load_arrears_frame(path)
+    arrears_df = load_arrears_frame(path)
 
     conn = sqlite3.connect(dest)
     try:
         create_schema(conn)
         load_regions(conn)
-        load_arrears(conn, df)
+        load_arrears(conn, arrears_df)
         load_breaks(conn)
+        if include_macro_labour:
+            ensure_statcan_zip()
+            load_macro(conn, load_macro_long())
+            load_labour(conn, build_labour_panel())
         conn.commit()
     finally:
         conn.close()
@@ -118,6 +152,29 @@ def row_counts(db_path: Path | None = None) -> pd.DataFrame:
         conn.close()
 
 
+def run_panel(db_path: Path | None = None) -> pd.DataFrame:
+    dest = db_path or DB_PATH
+    sql = PANEL_SQL_PATH.read_text()
+    conn = sqlite3.connect(dest)
+    try:
+        return pd.read_sql_query(sql, conn)
+    finally:
+        conn.close()
+
+
+def null_counts_by_decade(panel: pd.DataFrame) -> pd.DataFrame:
+    df = panel.copy()
+    df["decade"] = df["obs_month"].str.slice(0, 3) + "0s"
+    cols = ["arrears_rate", "unemployment_rate", "policy_rate", "five_year_yield"]
+    rows = []
+    for decade, group in df.groupby("decade"):
+        row = {"decade": decade, "n": len(group)}
+        for col in cols:
+            row[f"{col}_nulls"] = int(group[col].isna().sum())
+        rows.append(row)
+    return pd.DataFrame(rows).sort_values("decade")
+
+
 def main() -> None:
     pdf = cached_pdf_path() or download_latest()
     db = build_database(pdf_path=pdf)
@@ -126,6 +183,12 @@ def main() -> None:
     print(f"pdf={pdf.name}")
     print(f"report_month={report_month(load_arrears_frame(pdf))}")
     print(counts.to_string(index=False))
+
+    panel = run_panel(db)
+    print("\npanel first 20 rows:")
+    print(panel.head(20).to_string(index=False))
+    print("\nnull counts by decade:")
+    print(null_counts_by_decade(panel).to_string(index=False))
 
 
 if __name__ == "__main__":
