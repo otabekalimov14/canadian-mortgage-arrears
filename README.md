@@ -76,3 +76,16 @@ Daily series are stored at native frequency in `macro`; the panel uses the last 
 - `five_year_yield`: null before 2001
 - `unemployment_rate`: null for `TERR` only (excluded from the panel query)
 - Atlantic unemployment is labour-force-weighted across NL, PE, NS, NB
+
+## Phase 3 status (done)
+
+Lag analysis: cross-correlation of month-over-month changes at lags 0–24.
+
+| Step | Command |
+|---|---|
+| Run peaks + charts | `python src/lags.py` |
+| Notebook | `notebooks/02-lags.ipynb` |
+
+Outputs: `reports/lag_peaks.csv`, `reports/figures/lag_profile_ON_unemployment.png`, `reports/figures/lag_profile_SK_unemployment.png`.
+
+**Headline:** Ontario unemployment peak lag = **1 month**; Saskatchewan = **10 months**. ATL and BC peak at **0** (same month). Correlations are modest (~0.12–0.16 for unemployment).

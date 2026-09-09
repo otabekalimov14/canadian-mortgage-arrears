@@ -1,0 +1,3 @@
+-- Which lag of each driver best lines up with month-over-month arrears changes?
+-- Cross-correlation peaks are computed in src/lags.py (lags 0-24 on first
+-- differences) and written to reports/lag_peaks.csv for the notebooks.
