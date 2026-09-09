@@ -89,3 +89,16 @@ Lag analysis: cross-correlation of month-over-month changes at lags 0–24.
 Outputs: `reports/lag_peaks.csv`, `reports/figures/lag_profile_ON_unemployment.png`, `reports/figures/lag_profile_SK_unemployment.png`.
 
 **Headline:** Ontario unemployment peak lag = **1 month**; Saskatchewan = **10 months**. ATL and BC peak at **0** (same month). Correlations are modest (~0.12–0.16 for unemployment).
+
+## Phase 4 status (done)
+
+Province fixed-effects regression of arrears rate on lagged unemployment and lagged policy rate.
+
+| Step | Command |
+|---|---|
+| Run regression | `python src/regression.py` |
+| Notebook | `notebooks/02-lags.ipynb` (Phase 4 cells) |
+
+**Median lags from Phase 3:** unemployment = **2 months**, policy rate = **2 months**.
+
+**Headline:** A one percentage point rise in provincial unemployment is associated with about a **5.2 basis point** rise in the arrears rate **2 months** later (HC1 robust SEs; province FE).
