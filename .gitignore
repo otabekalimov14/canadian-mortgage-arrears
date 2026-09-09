@@ -1,0 +1,19 @@
+# Cached downloads and local database — never commit
+data/raw/**
+!data/raw/.gitkeep
+data/*.db
+*.db
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/

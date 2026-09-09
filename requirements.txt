@@ -1,0 +1,6 @@
+pandas>=2.2
+pdfplumber>=0.11
+requests>=2.32
+statsmodels>=0.14
+matplotlib>=3.9
+pytest>=8.3
